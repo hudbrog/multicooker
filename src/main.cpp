@@ -3,14 +3,11 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
-// #include <TimeLib.h>
-// #include <NtpClientLib.h>
 #include <time.h>
 extern "C" {
 #include "user_interface.h"
 #include "sntp.h"
 }
-// #include <timelib.h>
 #include "ringbuffer.hpp"
 
 #define BUFFER_SIZE 1024
@@ -21,11 +18,8 @@ ESP8266WebServer server ( 80 );
 const char* ssid = "hudbrogwifi";
 const char* password = "wifipass";
 
-// char buffer_debug[BUFFER_SIZE+1];
 ringbuffer<char, BUFFER_SIZE> buffer_debug = ringbuffer<char, BUFFER_SIZE>();
-// ringbuffer<char, BUFFER_SIZE> buffer_serial = ringbuffer<char, BUFFER_SIZE>();
 char buffer_serial[PACKET_BUFFER_SIZE];
-// int buffer_debug_pos=0;
 
 int last_temp_lower;
 int last_temp_upper;
@@ -45,20 +39,8 @@ struct packet{
 
 #define PACKET_SIZE 8
 
-// int buffer_put_char(char* buffer, int *pos, char ch){
-//     buffer[*pos] = ch;
-//     (*pos)++;
-//     if(*pos == BUFFER_SIZE) *pos=0;
-//     return *pos;
-// }
-//
-
-// void buffer_put_array(const char *str, int len){
-//   for (int i=0; i<len;i++)buffer_put_char(str[i]);
-// }
 
 void buffer_put_str(ringbuffer<char, BUFFER_SIZE> *buffer, String str){
-  // for (int i=0; i<str.length();i++)buffer_put_char(buffer, pos, str.charAt(i));
   for (int i=0; i<str.length();i++)buffer->push(str.charAt(i));
 }
 
@@ -67,13 +49,6 @@ void debug_log(String str){
   sprintf(dt, "%02d:%02d:%02d \0", hour(), minute(), second());
   buffer_put_str(&buffer_debug, String(dt) + str+"\n");
 }
-
-// char buffer_get_char(ringbuffer<char, BUFFER_SIZE> buffer, int buffer_pos, int pos){
-//   if (buffer_pos+pos >= BUFFER_SIZE){
-//     return buffer[(buffer_pos+pos)%BUFFER_SIZE];
-//   }
-//   return buffer[buffer_pos+pos];
-// }
 
 char buffer_get_char(ringbuffer<char, BUFFER_SIZE> buffer, int pos){
   return buffer.get(pos);
@@ -125,9 +100,7 @@ void handleTemp() {
 }
 
 void process_packet(){
-  // return;
   packet *pck = (packet *)&buffer_serial;
-  // pck = (packet *)&buffer_serial[start_pos];
   if (check_crc(pck->temp_lower, pck->temp_upper, pck->checksum)){
     last_temp_lower = (int)pck->temp_lower;
     last_temp_upper = (int)pck->temp_upper;
@@ -153,10 +126,6 @@ void process_packet(){
 
 void setup() {
   Serial.begin(9600);
-  // for(int i=0;i<BUFFER_SIZE;i++)buffer_serial[i] = '*';
-  // for(int i=0;i<BUFFER_SIZE;i++)buffer_debug[i] = '*';
-  // buffer_debug[BUFFER_SIZE] = 0;
-  // buffer_serial[BUFFER_SIZE] = 0;
   debug_log("Booting\n");
   WiFi.mode(WIFI_AP_STA );
   WiFi.begin(ssid, password);
@@ -164,21 +133,6 @@ void setup() {
     delay(5000);
     ESP.restart();
   }
-  // NTP.onNTPSyncEvent([](NTPSyncEvent_t error) {
-  //   if (error) {
-  //       debug_log("Time Sync error: ");
-  //       if (error == noResponse)
-  //           debug_log("NTP server not reachable");
-  //       else if (error == invalidAddress)
-  //           debug_log("Invalid NTP server address");
-  //   }
-  //   else {
-  //       debug_log("Got NTP time: ");
-  //       debug_log(NTP.getTimeDateString(NTP.getLastNTPSync()));
-  //   }
-  // });
-  // NTP.begin("176.31.251.139", 1, true);
-  // NTP.setInterval(30);
   configTime(3 * 3600, 0, "2.pool.ntp.org", "0.pool.ntp.org", "1.pool.ntp.org");
   setSyncProvider((getExternalTime)sntp_get_current_timestamp);
   setSyncInterval(300);
@@ -209,9 +163,6 @@ void loop() {
 
   while(Serial.available()>0){
     ch = Serial.read();
-    // if(ch == 0)packet_start=buffer_serial_pos;
-    // if(ch == 0)packet_start=buffer_serial.;
-    // buffer_put_char(buffer_serial, &buffer_serial_pos, ch);
     buffer_serial[packet_pos]=ch;
     packet_pos++;
     if(packet_pos!=0 && prev_ch==0xAA && ch==0xFF){ // packet_ready
