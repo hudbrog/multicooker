@@ -11,6 +11,8 @@ extern "C" {
 #include "ringbuffer.hpp"
 
 #define BUFFER_SIZE 1024
+#define TEMPERATURE_BUFFER_SIZE 1024
+#define PACKET_SIZE 8
 #define PACKET_BUFFER_SIZE 16
 
 ESP8266WebServer server ( 80 );
@@ -37,8 +39,13 @@ struct packet{
   char pad_ff;
 };
 
-#define PACKET_SIZE 8
+struct temp_struc{
+  char temp_lower;
+  char temp_upper;
+  time_t timestamp;
+};
 
+ringbuffer<temp_struc, TEMPERATURE_BUFFER_SIZE> temp_buffer = ringbuffer<temp_struc, TEMPERATURE_BUFFER_SIZE>();
 
 void buffer_put_str(ringbuffer<char, BUFFER_SIZE> *buffer, String str){
   for (int i=0; i<str.length();i++)buffer->push(str.charAt(i));
@@ -85,18 +92,45 @@ void handleRoot() {
 }
 
 void handleTemp() {
-  char temp[1000];
+  char temp[500];
+  int pos;
+  temp_struc temperature;
+  int skip=0;
+  String out = "";
   // time_t now = time(nullptr);
   sprintf(temp,
     "<html>\
       <head>\
         <title>ESP8266 Demo</title>\
+        <script type='text/javascript' src='https://cdnjs.cloudflare.com/ajax/libs/canvasjs/1.7.0/canvasjs.js'></script>\
       </head>\
       <body>\
-        Upper temp: %d, lower temp: %d, time: %d\0",
+        Upper temp: %d, lower temp: %d, time: %d\
+        <script type='text/javascript'>\
+          var mcData = [\0",
     last_temp_upper, last_temp_lower, now()
   );
-  server.send(200, "text/html", temp);
+
+  out += temp;
+  char array[11];
+  for(int i=0; i<temp_buffer.size(); i++){
+    temperature = temp_buffer.get(i);
+    sprintf(array, "[%d,%d,%lu],", temperature.temp_upper, temperature.temp_lower, temperature.timestamp);
+    out += array;
+  }
+
+  sprintf(temp,
+    "];\
+    </script>\
+    <div id=\"chartContainer\" style=\"height: 300px; width: 100\%;\">\
+	  </div>\
+    <script type='text/javascript' src='http://dtp.gcode.ws/js/lib.js'></script>\
+    </body>\
+    </html>\
+    \0");
+  out += temp;
+
+  server.send(200, "text/html", out);
 }
 
 void process_packet(){
@@ -108,6 +142,11 @@ void process_packet(){
       char msg[32];
       sprintf(msg, "Temp: %d, %d\0", pck->temp_lower, pck->temp_upper);
       debug_log(msg);
+      temp_struc cur_temp;
+      cur_temp.temp_lower = pck->temp_lower;
+      cur_temp.temp_upper = pck->temp_upper;
+      cur_temp.timestamp = now();
+      temp_buffer.push(cur_temp);
       last_millis = millis();
     }
   } else {
